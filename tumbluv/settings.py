@@ -27,40 +27,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
-
-    # third party
-    # django-rest-auth
-    'rest_framework',
-    'rest_framework.authroken',
-    'rest_auth',
-
-    # django-allauth
-    'django.contrib.sites',
-    'allauth',
-    'allauth.account',
-    'allauth.socialaccount',
-    'rest_auth.registration',
-
-    # my app
-    'accounts',
-
-    # provider
-    'allauth.socialaccount.providers.kakao',
 ]
-
-SITE_ID = 1
-
-SOCIALACCOUNT_PROVIDERS = my_settings.SOCIALACCOUNT_PROVIDERS
-
-REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
-    ),
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework_jwt.authentication.JSONWebTokenAuthentication',
-    ],
-}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
