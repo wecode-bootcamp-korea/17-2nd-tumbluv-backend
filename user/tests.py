@@ -1,3 +1,4 @@
+import unittest
 import json
 import jwt
 import time
@@ -11,7 +12,7 @@ from unittest.mock  import patch, MagicMock
 
 from .models        import User, Verification
 from .views         import KakaoSignInView
-from my_settings    import ALGORITHM, SECRET_KEY
+from my_settings    import ALGORITHM, SECRET_KEY, EMAIL
 
 class KakaoSignInTest(TestCase):
     @patch('user.views.requests')
@@ -153,6 +154,97 @@ class TestValidateCodeView(TestCase):
             }
         ) 
 
+class SignUpTest(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User.objects.create(
+            fullname='김코드',
+            email='wecode1@gmail.com'
+            )
+
+    def tearDown(self):
+         User.objects.all().delete()
+
+    def test_signup_post_success(self):
+        user = {
+            'fullname' : '박코드',
+            'email': 'wecode2@gmail.com',
+            'password' : '12345678'
+        }
+        client = Client()
+        response = client.post('/user/signup', json.dumps(user), content_type='application/json')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(),
+            {
+                'message':'SUCCESS'
+            }
+        )
+
+    def test_signup_post_invalid_fullname(self):
+        user = {
+            'fullname' : '김',
+            'email': 'wecode3@gmail.com',
+            'password' : '12345678'
+        }
+
+        client = Client()
+        response = client.post('/user/signup', json.dumps(user), content_type='application/json')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(),
+            {
+                'message':'FULLNAME_VALIDATION_ERROR'
+            }
+        )
+
+    def test_signup_post_email_duplicated(self):
+        user = {
+            'fullname' : '김코드',
+            'email': 'wecode1@gmail.com',
+            'password' : '12345678'
+        }
+        client = Client()
+        response = client.post('/user/signup', json.dumps(user), content_type='application/json')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(),
+            {
+                'message':'ALREADY_EXIST'
+            }
+        )
+
+    def test_signup_post_invalid_password(self):
+        user = {
+            'fullname' : '허코드',
+            'email': 'wecode4@gmail.com',
+            'password' : '12345'
+        }
+        client = Client()
+        response = client.post('/user/signup', json.dumps(user), content_type='application/json')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(),
+            {
+                'message':'PASSWORD_VALIDATION_ERROR'
+            }
+        )
+
+    def test_signup_post_key_error(self):
+        user = {
+            'fullname' : '유코드',
+            'email': 'wecode5@gmail.com',
+        }
+        client = Client()
+        response = client.post('/user/signup', json.dumps(user), content_type='application/json')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(),
+            {
+                'message':'KEY_ERROR'
+            }
+        )
+
 class TestSignInView(TestCase):
     
     def setUp(self):
@@ -227,3 +319,5 @@ class TestSignInView(TestCase):
                 'message': 'INVALID_KEY'
             }
         )
+
+
