@@ -421,3 +421,4 @@ my_settings.py
 *.csv
 .vscode
 db_uploader.py
+.sql
