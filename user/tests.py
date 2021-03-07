@@ -276,7 +276,7 @@ class TestSignInView(TestCase):
         self.assertEqual(response.json(),
             {
                 'message': 'SUCCESS',
-                'access_token': jwt.encode({'user_id': user_id}, SECRET_KEY, algorithm=ALGORITHM)
+                'access_token': jwt.encode({'id': user_id}, SECRET_KEY, algorithm=ALGORITHM)
             }
         )
 
