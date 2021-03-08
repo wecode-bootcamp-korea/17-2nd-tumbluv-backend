@@ -2,15 +2,20 @@ import requests
 import json
 import bcrypt
 import jwt
-import bcrypt
+import datetime
 
-from django.http    import JsonResponse
-from django.views   import View
-from django.utils   import timezone
+from random                         import randint
 
-from .models        import User, Verification
-from my_settings    import (
-    KAKAO_KEY, ALGORITHM, SECRET_KEY
+from django.http                    import JsonResponse
+from django.views                   import View
+from django.utils                   import timezone
+from django.core.exceptions         import ValidationError
+from django.core.validators         import validate_email
+from django.core.mail               import EmailMessage
+
+from .models                        import User, Verification
+from my_settings                    import (
+    KAKAO_KEY, ALGORITHM, SECRET_KEY, EMAIL
 )
 
 class KakaoSignInView(View):
@@ -42,6 +47,33 @@ class KakaoSignInView(View):
 
         except:
             return JsonResponse({'message': 'TOKEN_INVALID'}, status=401)
+
+class SendMailView(View):
+    def post(self, request):
+        data       = json.loads(request.body)
+        MAIL_TITLE = '안녕하세요. tumbluv입니다.'
+        try:
+            email = data['email']
+            code  = randint(100000, 1000000)
+
+            validate_email(email)
+
+            if Verification.objects.filter(email=email).exists():
+                trier      = Verification.objects.get(email=email)
+                trier.code = code
+                trier.save()          
+            else:
+                trier = Verification.objects.create(email=email, code=code)
+
+            email      = EmailMessage(MAIL_TITLE, '인증번호: ' + str(trier.code), to=[email])
+            email.send()
+
+            return JsonResponse({'message': 'SUCCESS'}, status=200)
+
+        except KeyError:
+            return JsonResponse({'message':'KEY_ERROR'}, status=400)
+        except ValidationError:
+            return JsonResponse({'message': 'INVALID_EMAIL'}, status=400)
 
 class ValidateCodeView(View):
     def post(self, request):

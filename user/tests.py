@@ -5,14 +5,19 @@ import time
 import datetime
 import bcrypt
 
-from django.http    import JsonResponse
-from django.views   import View
-from django.test    import TestCase, Client
-from unittest.mock  import patch, MagicMock
+from random                 import randint
 
-from .models        import User, Verification
-from .views         import KakaoSignInView
-from my_settings    import ALGORITHM, SECRET_KEY, EMAIL
+from django.http            import JsonResponse
+from django.views           import View
+from django.test            import TestCase, Client
+from unittest.mock          import patch, MagicMock
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.core.mail       import EmailMessage
+
+from .models                import User, Verification
+from .views                 import KakaoSignInView
+from my_settings            import ALGORITHM, SECRET_KEY, EMAIL
 
 class KakaoSignInTest(TestCase):
     @patch('user.views.requests')
@@ -320,4 +325,57 @@ class TestSignInView(TestCase):
             }
         )
 
+class SendMailTest(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        Verification.objects.create(
+            email='jyho930@gmail.com',
+            code=randint(100000, 1000000)
+            )
 
+    def tearDown(self):
+         Verification.objects.all().delete()
+
+    def test_send_email_post_success(self):
+        user = {
+            'email' : 'jyho930@gmail.com',
+            'code'  : randint(100000, 1000000)
+        }
+        client = Client()
+        response = client.post('/user/signup/email', json.dumps(user), content_type='application/json')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(),
+            {
+                'message':'SUCCESS'
+            }
+        )
+
+    def test_send_mail_post_key_error(self):
+        user = {
+            'code'  : randint(100000, 1000000)
+        }
+        client = Client()
+        response = client.post('/user/signup/email', json.dumps(user), content_type='application/json')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(),
+            {
+                'message':'KEY_ERROR'
+            }
+        )
+
+    def test_send_email_post_invalid_email(self):
+        user = {
+            'email' : 'jyho930gmailcom',
+            'code'  : randint(100000, 1000000)
+        }
+        client = Client()
+        response = client.post('/user/signup/email', json.dumps(user), content_type='application/json')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(),
+            {
+                'message':'INVALID_EMAIL'
+            }
+        )
