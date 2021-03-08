@@ -134,3 +134,12 @@ CORS_ALLOW_HEADERS = (
     'x-csrftoken',
     'x-requested-with',
 )
+
+# 이메일 보내기
+EMAIL_BACKEND=my_settings.EMAIL['EMAIL_BACKEND']
+EMAIL_USE_TLS=my_settings.EMAIL['EMAIL_USE_TLS']
+EMAIL_PORT=my_settings.EMAIL['EMAIL_PORT']
+EMAIL_HOST=my_settings.EMAIL['EMAIL_HOST']
+EMAIL_HOST_USER=my_settings.EMAIL['EMAIL_HOST_USER']
+EMAIL_HOST_PASSWORD=my_settings.EMAIL['EMAIL_HOST_PASSWORD']
+SERVER_EMAIL=my_settings.EMAIL['SERVER_EMAIL']
