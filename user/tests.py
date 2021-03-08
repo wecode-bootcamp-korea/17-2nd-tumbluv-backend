@@ -2,21 +2,18 @@ import json
 import jwt
 import time
 import datetime
+import bcrypt
 
-from django.http   import JsonResponse
-from django.views  import View
-from django.test   import TestCase, Client
-from unittest.mock import patch, MagicMock
+from django.http    import JsonResponse
+from django.views   import View
+from django.test    import TestCase, Client
+from unittest.mock  import patch, MagicMock
 
-from .models     import User, Verification
-from .views      import KakaoSignInView
-from my_settings import ALGORITHM, SECRET_KEY
+from .models        import User, Verification
+from .views         import KakaoSignInView
+from my_settings    import ALGORITHM, SECRET_KEY
 
 class KakaoSignInTest(TestCase):
-
-    def tearDown(self):
-        User.objects.all().delete()
-
     @patch('user.views.requests')
     def test_kakao_login_success(self, mocked_request):
 
@@ -153,5 +150,80 @@ class TestValidateCodeView(TestCase):
         self.assertEqual(response.json(),
             {
                 'message': 'EMAIL_VALIDATE_SUCCESS'
-                }
+            }
+        ) 
+
+class TestSignInView(TestCase):
+    
+    def setUp(self):
+        User.objects.create(
+            email    = 'test1234@test.com',
+            password = bcrypt.hashpw('123456'.encode('utf-8'), bcrypt.gensalt()).decode()
+        )
+
+    def tearDown(self):
+        User.objects.all().delete()
+
+    def test_signinview_success(self):
+        client = Client()
+        user   = {
+                'id'       : 1,
+                'email'    : 'test1234@test.com',
+                'password' : '123456'
+            }
+        header   = {'Authorization': 'access_token'}
+        response = client.post('/user/signin', json.dumps(user), content_type='application/json', **header)
+        user_id  = User.objects.get(email='test1234@test.com').id
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(),
+            {
+                'message': 'SUCCESS',
+                'access_token': jwt.encode({'user_id': user_id}, SECRET_KEY, algorithm=ALGORITHM)
+            }
+        )
+
+    def test_signinview_invalid_user(self):
+        client = Client()
+        user   = {
+                'email'    : 'test5678@test.com',
+                'password' : '123456'
+            }
+        response = client.post('/user/signin', json.dumps(user), content_type='application/json')
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(),
+            {
+                'message': 'INVALID_USER'
+            }
+        )
+
+    def test_signinview_invalid_password(self):
+        client = Client()
+        user = {
+                'email'    : 'test1234@test.com',
+                'password' : '234567'
+            }
+        response = client.post('/user/signin', json.dumps(user), content_type='application/json')
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(),
+            {
+                'message': 'SIGNIN_FAIL'
+            }
+        )
+
+    def test_signinview_invalid_key(self):
+        client = Client()
+        user = {
+                'user_email' : 'test1234@test.com',
+                'password'   : '123456'
+            }
+        response = client.post('/user/signin', json.dumps(user), content_type='application/json')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(),
+            {
+                'message': 'INVALID_KEY'
+            }
         )
