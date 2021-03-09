@@ -18,7 +18,7 @@ class Project(models.Model):
     created_at       = models.DateTimeField(auto_now_add=True)
     updated_at       = models.DateTimeField(auto_now=True)
     achieved_rate    = models.DecimalField(max_digits=10, decimal_places=2, null=True)
-    total_amount     = models.DecimalField(max_digits=15, decimal_places=2)
+    total_amount     = models.DecimalField(max_digits=15, decimal_places=2, null=True)
     thumbnail_url    = models.URLField(max_length=2000)
     goal_amount      = models.DecimalField(max_digits=15, decimal_places=2)
     summary          = models.CharField(max_length=500)
