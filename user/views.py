@@ -2,16 +2,14 @@ import requests
 import json
 import jwt
 
-from django.http import JsonResponse
-from django.views import View
+from django.http    import JsonResponse
+from django.views   import View
+from django.utils   import timezone
 
-from .models import User
-from my_settings import (
-    KAKAO_KEY, ALGORITHM, SECRET_KEY
-)
+from .models        import User, Verification
+from my_settings    import KAKAO_KEY, ALGORITHM, SECRET_KEY
 
 class KakaoSignInView(View):
-
     def get(self, request):
         try:
             access_token = request.headers['Authorization']
@@ -40,3 +38,25 @@ class KakaoSignInView(View):
 
         except:
             return JsonResponse({'message': 'TOKEN_INVALID'}, status=401)
+
+class ValidateCodeView(View):
+    def post(self, request):
+        TIME_LIMIT = 60
+
+        data = json.loads(request.body)
+        try:
+            code  = data['code']
+            email = data['email']
+            trier = Verification.objects.get(email=email)
+
+            if (timezone.now() - trier.created_at).seconds >= TIME_LIMIT:
+                trier.delete()
+                return JsonResponse({'message': 'TIME_OUT'}, status=400)
+
+            if code != trier.code:
+                return JsonResponse({'message': 'INVALID_CODE'}, status=400)
+            trier.delete()
+            return JsonResponse({'message': 'EMAIL_VALIDATE_SUCCESS'}, status=200)
+                
+        except KeyError:
+            return JsonResponse({'message': 'NEED_CODE'}, status=400)

@@ -1,7 +1,8 @@
-from django.urls import path, include
+from django.urls import path
 
-from .views import KakaoSignInView
+from user.views import ValidateCodeView, KakaoSignInView
 
 urlpatterns = [
-    path('/signin/kakao', KakaoSignInView.as_view())
+    path('/signup/email-validation', ValidateCodeView.as_view()),
+    path('/signin/kakao', KakaoSignInView.as_view()),
 ]
