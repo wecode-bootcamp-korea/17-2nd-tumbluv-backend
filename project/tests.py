@@ -432,4 +432,4 @@ class TestProjectDetailView(TestCase):
             {
                 'message': 'PROJECT_NOT_EXIST'
             }
-        )
+

@@ -1,13 +1,15 @@
 import json
 import boto3
 
-from datetime         import datetime, timedelta
+from datetime         import date, datetime, timedelta
 
 from django.db        import transaction
 from django.db        import IntegrityError
 from django.views     import View
+from django.db.models import Q
 from django.conf      import settings
 from django.http      import JsonResponse
+from django.utils     import timezone
 
 from my_settings      import (
     SECRET_KEY, ALGORITHM,
@@ -167,3 +169,90 @@ class ProjectDetailView(View):
             'creator_info': creator_info,
             'tab'         : tab
             }, status=200)
+
+class ProjectView(View):
+    def get(self, request):
+        offset = int(request.GET.get('offset', 0))
+        limit = int(request.GET.get('limit', 12))
+        category = request.GET.get('category', None)
+        status = request.GET.get('status', 0)
+        achieve = request.GET.get('achieve', None)
+        money = request.GET.get('money', 0)
+        ordering = request.GET.get('sort', None)
+        
+        q = Q()
+
+        if category:
+            q &= Q(category=category)
+
+        if status == 'all':
+            q.add(Q(opening_date__gte=datetime.today()), q.AND)
+
+        if status == 'onGoing':
+            q.add(Q(opening_date__lte=datetime.today()), q.AND)
+            q.add(Q(closing_date__gte=datetime.today()), q.AND)
+
+        if status == 'confirm':
+            q &= Q(achieved_rate__gte=100)
+
+        if status == 'prelaunching':
+            q &= Q(opening_date__gt=datetime.today())
+
+        if achieve == 'under75':
+            q &= Q(achieved_rate__lte=75)
+
+        if achieve == 'under100':
+            q.add(Q(achieved_rate__gte=75), q.AND)
+            q.add(Q(achieved_rate__lte=100), q.AND)
+
+        if achieve == '100up':
+            q &= Q(achieved_rate__gte=100)
+
+        if money == 'all':
+            q &= Q(total_amount__gte=0)
+
+        if money == 'under1m':
+            q &= Q(total_amount__lte=1000000)
+
+        if money == 'under10m':
+            q.add(Q(total_amount__gt=1000000), q.AND)
+            q.add(Q(total_amount__lte=10000000), q.AND)
+
+        if money == 'under50m':
+            q.add(Q(total_amount__gt=10000000), q.AND)
+            q.add(Q(total_amount__lte=50000000), q.AND)
+
+        if money == 'under100m':
+            q.add(Q(total_amount__gt=50000000), q.AND)
+            q.add(Q(total_amount__lte=100000000), q.AND)
+
+        if money == '100mup':
+            q &= Q(total_amount__gt=100000000)
+            
+        projects = Project.objects.filter(q)
+
+        if ordering == 'popular':
+            projects = projects.order_by('-achieved_rate')
+        if ordering == 'publishedAt':
+            projects = projects.order_by('-opening_date')
+        if ordering == 'pledges':
+            projects = projects.order_by('-total_supporters')
+        if ordering == 'amount':
+            projects = projects.order_by('-total_amount')
+        if ordering == 'endedAt':
+            projects = projects.order_by('closing_date')
+
+        project_list = [{
+            'thumbnail_url': project.thumbnail_url,
+            'name': project.name,
+            'category': project.category.name,
+            'user': project.user.fullname,
+            'summary': project.summary,
+            'total_amount': int(project.total_amount),
+            'achieved_rate': int(project.achieved_rate),
+            'days_left': (project.closing_date - timezone.now()).days,
+            'project_uri': project.project_uri,
+            # 'islike': project.like_set.get(project=project)
+            } for project in projects][offset:offset+limit]
+
+        return JsonResponse({'count': projects.count(), 'results': project_list}, status=200)
