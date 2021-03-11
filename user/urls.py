@@ -1,6 +1,6 @@
 from django.urls    import path
 
-from user.views     import ValidateCodeView, KakaoSignInView, SignInView, SendMailView
+from user.views     import ValidateCodeView, KakaoSignInView, SignInView, SendMailView, SignUpView
 
 urlpatterns = [
     path('/signup/email-validation', ValidateCodeView.as_view()),
