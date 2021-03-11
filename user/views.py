@@ -37,13 +37,13 @@ class KakaoSignInView(View):
                 fullname      = response['kakao_account']['profile']['nickname']
             )
 
-            token = jwt.encode({'id': user.id}, SECRET_KEY, algorithm=ALGORITHM)
+            access_token = jwt.encode({'id': user.id}, SECRET_KEY, algorithm=ALGORITHM)
             result = {
                 'profile_image' : user.profile_image,
-                'name'          :  user.fullname
+                'name'          : user.fullname
                 }
             
-            return JsonResponse({'message': 'SUCCESS', 'data': result, 'token': token}, status = 200)
+            return JsonResponse({'message': 'SUCCESS', 'data': result, 'access_token': access_token}, status = 200)
 
         except:
             return JsonResponse({'message': 'TOKEN_INVALID'}, status=401)

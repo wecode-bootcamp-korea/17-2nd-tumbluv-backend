@@ -1,14 +1,247 @@
 import json
+import unittest
 import jwt
+import mock
 import datetime
-from freezegun      import freeze_time
 
-from django.test    import TestCase, Client
-from unittest.mock  import patch
+from django.core.files import File
+from unittest.mock     import patch, MagicMock
+from freezegun         import freeze_time
 
-from my_settings    import SECRET_KEY, ALGORITHM
-from .models        import Category, Project, Gift, Community, Story, Like
-from user.models    import User
+from django.db         import transaction
+from django.test       import TestCase, Client
+from django.views      import View
+from django.conf       import settings
+from django.http       import JsonResponse
+
+from my_settings       import (
+    SECRET_KEY, ALGORITHM,
+)
+
+from user.models       import User
+from user.utils        import login_decorator
+from user.models       import User
+from .models           import  (
+    Category, Project, Like,
+    Gift, Story, Community
+)
+
+class FileViewTest(TestCase):
+
+    @patch('project.views.boto3')
+    def test_file_upload_success(self, mocked_s3_client):
+        self.freezer = freeze_time("2021-03-11 21:00:49.951790")
+        self.freezer.start()
+        
+        image      = mock.MagicMock(spec=File, name='file.jpeg')
+        image.name = 'file.jpg'
+
+        class MockedResponse:
+            def json(self):
+                return image
+        
+        mocked_s3_client.upload_fileobj = MagicMock(return_value=MockedResponse())
+        client                          = Client()
+        data                            = {'filename':image}
+        response                        = client.post("/project/file", data)
+        
+        self.freezer.stop()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(), {
+                "thumbnail_url" : "https://tumbluv.s3.ap-northeast-2.amazonaws.com/2021-03-11_21:00:49.951790.jpeg"
+            }
+        ) 
+    
+    @patch('project.views.boto3')
+    def test_file_upload_file_missing(self, mocked_s3_client):
+        self.freezer = freeze_time("2021-03-11 21:00:49.951790")
+        self.freezer.start()
+        
+        image      = mock.MagicMock(spec=None, name=None)
+        image.name = None
+
+        class MockedResponse:
+            def json(self):
+                return image
+        
+        mocked_s3_client.upload_fileobj = MagicMock(return_value=MockedResponse())
+        client                          = Client()
+        data                            = {'filename':image}
+        response                        = client.post("/project/file", data)
+        
+        self.freezer.stop()
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(), {
+                "message" : "FILE_NOT_ATTACHED"
+            }
+        ) 
+
+
+class ProjectRegisterTest(TestCase):
+    
+    def setUp(self):
+        User.objects.create(
+            id       = 1,
+            fullname = "이단비",
+            email    = "danbi@so.cute"
+        )
+
+        Category.objects.create(
+            id   = 1,
+            name = "카테고리"
+        )
+
+        Project.objects.create(
+            id               = 1,
+            name             = "단비 간식주기",
+            opening_date     = "2021-03-11",
+            closing_date     = "2021-03-15",
+            total_supporters = None,
+            created_at       = "2021-03-10",
+            updated_at       = "2021-03-10",
+            achieved_rate    = None,
+            total_amount     = None,
+            thumbnail_url    = "https://tumbluv.s3.ap-northeast-2.amazonaws.com/2021-03-10_01:02:57.219378.jpeg",
+            goal_amount      = 10000000,
+            summary          = "뚱비는 다이어트중",
+            user_id          = 1,
+            category_id      = 1,
+            project_uri      = "/feed-danbi"
+        )
+
+    def tearDown(self):
+        User.objects.all().delete()
+        Category.objects.all().delete()
+    
+    def test_project_register_success(self):
+        user         = User.objects.get(id=1)
+        access_token = jwt.encode({'id': user.id}, SECRET_KEY, algorithm=ALGORITHM)
+        headers      = {'HTTP_Authorization': access_token}
+        body         = {
+            "name"         : "단비랑 산책하기",
+            "summary"      : "귀여운 단비와 산책 할 기회를 드려요",
+            "category"     : "카테고리",
+            "story"        : "<div><p>스토리</p></div>",
+            "goal_amount"  : 10000000000,
+            "opening_date" : "2013-07-03",
+            "closing_date" : "2021-07-03",
+            "thumbnail_url": "https://tumbluv.s3.ap-northeast-2.amazonaws.com/2021-03-10_01:02:57.219378.jpeg",
+            "project_uri"  : "with-danbi",
+            "gifts"        : [{
+                "gift_name"     : "first gift",
+                "gift_price"    : 2000000,
+                "gift_stock"    : 20,
+                "quantity_sold" : 0
+                },{
+                "gift_name"     : "second gift",
+                "gift_price"    : 3000000,
+                "gift_stock"    : 30,
+                "quantity_sold" : 0
+                },{
+                "gift_name"     : "third gift",
+                "gift_price"    : 5000000,
+                "gift_stock"    : 50,
+                "quantity_sold" : 0
+                }],
+            "total_amount":0
+        }
+
+        client   = Client()
+        response = client.post('/project/register', json.dumps(body), content_type='application/json', **headers)
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(), {
+                'message': 'SUCCESS'
+            }
+        )
+
+    def test_project_register_fail(self):
+        user         = User.objects.get(id=1)
+        access_token = jwt.encode({'id': user.id}, SECRET_KEY, algorithm=ALGORITHM)
+        headers      = {'HTTP_Authorization': access_token}
+        body         = {
+            "name"          : "단비랑 산책하기",
+            "summary"       : "귀여운 단비와 산책 할 기회를 드려요",
+            "category"      : "카테고리",
+            "story"         : "<div><p>스토리</p></div>",
+            "goal_amount"   : 10000000000,
+            "opening_date"  : "2013-07-03",
+            "closing_date"  : "2021-07-03",
+            "thumbnail_url" : "https://tumbluv.s3.ap-northeast-2.amazonaws.com/2021-03-10_01:02:57.219378.jpeg",
+            "project_uri"   : "with-danbi",
+            "gifts"         : [{
+                "gift_name"     : "first gift",
+                "gift_price"    : 2000000,
+                "gift_stock"    : 20,
+                "quantity_sold" : 0
+                },{
+                "gift_name"     : "second gift",
+                "gift_price"    : 3000000,
+                "gift_stock"    : 30,
+                "quantity_sold" : 0
+                },{
+                "gift_name"     : "third gift",
+                "gift_price"    : 5000000,
+                "gift_stock"    : 50,
+                "quantity_sold" : 0
+                }],
+        }
+
+        client   = Client()
+        response = client.post('/project/register', json.dumps(body), content_type='application/json', **headers)
+        
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(), {
+                'message': 'KEY_ERROR'
+            }
+        )
+
+    def test_project_register_token_invalid(self):
+        user         = User.objects.get(id=1)
+        access_token = jwt.encode({'id': user.id}, SECRET_KEY, algorithm=ALGORITHM)
+        headers      = {'HTTP_Authorization': access_token}
+        body         = {
+            "name"          : "단비 간식주기",
+            "summary"       : "귀여운 단비와 산책 할 기회를 드려요",
+            "category"      : "카테고리",
+            "story"         : "<div><p>스토리</p></div>",
+            "goal_amount"   : 10000000000,
+            "opening_date"  : "2013-07-03",
+            "closing_date"  : "2021-07-03",
+            "thumbnail_url" : "https://tumbluv.s3.ap-northeast-2.amazonaws.com/2021-03-10_01:02:57.219378.jpeg",
+            "project_uri"   : "/feed-danbi",
+            "gifts"         : [{
+                "gift_name"     : "first gift",
+                "gift_price"    : 2000000,
+                "gift_stock"    : 20,
+                "quantity_sold" : 0
+                },{
+                "gift_name"     : "second gift",
+                "gift_price"    : 3000000,
+                "gift_stock"    : 30,
+                "quantity_sold" : 0
+                },{
+                "gift_name"     : "third gift",
+                "gift_price"    : 5000000,
+                "gift_stock"    : 50,
+                "quantity_sold" : 0
+                }],
+            "total_amount":0
+        }
+
+        client   = Client()
+        response = client.post('/project/register', json.dumps(body), content_type='application/json', **headers)
+        
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(), {
+                'message': 'DUPLICATED_ENTRY'
+            }
+        )
 
 class TestProjectDetailView(TestCase):
     

@@ -1,14 +1,113 @@
 import json
+import boto3
 
-from datetime           import datetime, timedelta
+from datetime         import datetime, timedelta
 
-from django.http        import JsonResponse
-from django.views       import View
+from django.db        import transaction
+from django.db        import IntegrityError
+from django.views     import View
+from django.conf      import settings
+from django.http      import JsonResponse
 
-from user.utils         import user_decorator
-from .models            import Category, Project, Gift, Community, Story, Like
-from user.models        import User
-from message.models     import Message
+from my_settings      import (
+    SECRET_KEY, ALGORITHM,
+    AWS_ID    , AWS_KEY
+)
+
+from user.models      import User
+from user.utils       import login_decorator, user_decorator
+from user.models      import User
+from .models          import  (
+    Category, Project, Like,
+    Gift, Story, Community
+)
+     
+class RegisterView(View):   
+    @login_decorator
+    def post(self, request):
+        data    = json.loads(request.body)
+        user_id = request.user.id
+
+        try:
+            with transaction.atomic():
+                name          = data['name']
+                thumbnail_url = data['thumbnail_url']
+                summary       = data['summary']
+                category      = data['category']
+                story         = data['story']
+                goal_amount   = data['goal_amount']
+                total_amount  = data['total_amount']
+                opening_date  = data['opening_date']
+                closing_date  = data['closing_date']
+                project_uri   = data['project_uri']
+                gifts         = data['gifts']
+
+                category_id = Category.objects.get(name=category).id
+
+                project = Project.objects.create(
+                    category_id   = category_id,
+                    user_id       = user_id,
+                    name          = name,
+                    opening_date  = datetime.strptime(opening_date,'%Y-%m-%d'),
+                    closing_date  = datetime.strptime(closing_date,'%Y-%m-%d'),
+                    thumbnail_url = thumbnail_url,
+                    goal_amount   = goal_amount,
+                    total_amount  = total_amount,
+                    summary       = summary,
+                    project_uri   = project_uri
+                )
+
+                Story.objects.create(
+                    content    = story,
+                    project_id = project.id
+                    )
+
+                for gift in gifts: 
+                    Gift.objects.create(
+                        name          = gift['gift_name'],
+                        price         = gift['gift_price'],
+                        stock         = gift['gift_stock'],
+                        project_id    = project.id,
+                        quantity_sold = gift['quantity_sold']
+                    )
+
+                return JsonResponse({'message': 'SUCCESS'}, status=200)
+
+        except KeyError:
+            return JsonResponse({'message': 'KEY_ERROR'}, status=400)
+            
+        except IntegrityError:
+            return JsonResponse({"message": "DUPLICATED_ENTRY"}, status=400)
+
+class FileUpload(View):
+    def post(self, request):
+        s3_client = boto3.client(
+        's3',
+        aws_access_key_id     = AWS_ID,
+        aws_secret_access_key = AWS_KEY
+    )
+        
+        try:
+            image       = request.FILES['filename']
+            upload_time = (str(datetime.now())).replace(" ", "_")
+            image_type  = (image.content_type).split("/")[1]
+            
+            s3_client.upload_fileobj(
+                image,
+                "tumbluv",
+                upload_time+"."+image_type,
+                ExtraArgs={
+                    "ContentType": image.content_type
+                }
+            )
+
+            image_url = "https://tumbluv.s3.ap-northeast-2.amazonaws.com/" + upload_time + "." + image_type
+            image_url = image_url.replace(" ", "")
+            
+            return JsonResponse({"thumbnail_url": image_url}, status=200)
+        
+        except:
+            return JsonResponse({'message': 'FILE_NOT_ATTACHED'}, status=400)
 
 class ProjectDetailView(View):
     @user_decorator

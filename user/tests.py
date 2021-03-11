@@ -44,12 +44,12 @@ class KakaoSignInTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.json(), {
-                'message'       : 'SUCCESS', 
+                'message'       : 'SUCCESS',
                 'data': {
                     'profile_image' : None,
                     'name'          : "단비"
                 },
-                'token': jwt.encode({'id':user_id}, SECRET_KEY, algorithm=ALGORITHM)
+                'access_token': jwt.encode({'id':user_id}, SECRET_KEY, algorithm=ALGORITHM)
             }
         )
 
