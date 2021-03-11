@@ -1,6 +1,11 @@
-from django.urls    import path
-from .views  import ProjectDetailView
+from django.urls import path, include
+
+from .views import (
+    FileUpload, RegisterView, ProjectDetailView
+)
 
 urlpatterns = [
-        path('/<project_uri>', ProjectDetailView.as_view())
-        ]
+    path('/register', RegisterView.as_view()),
+    path('/file', FileUpload.as_view()),
+    path('/<project_uri>', ProjectDetailView.as_view())
+]
